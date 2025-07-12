@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Question Answering</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <main class="main-content">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">
+                        <i class="bi bi-file-earmark-pdf text-danger"></i>
+                        PDF Question Answering
+                    </h1>
+                </div>
+
+                {% if not has_api_key %}
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>API Key Missing:</strong> Please configure your COHERE_API_KEY environment variable.
+                </div>
+                {% endif %}
+
+                <!-- Control Panel -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <!-- PDF Upload -->
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <input type="file" id="file-input" accept=".pdf" class="d-none">
+                                            <button type="button" class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                                                <i class="bi bi-file-earmark-pdf"></i> Upload PDF
+                                            </button>
+                                            <div id="pdf-status" class="small">
+                                                {% if session.get('pdf_processed') %}
+                                                <div class="text-success">
+                                                    <i class="bi bi-check-circle"></i> {{ session.get('pdf_filename', 'PDF') }} loaded
+                                                    <br><small class="text-muted">{{ session.get('chunk_count', 0) }} chunks</small>
+                                                </div>
+                                                {% else %}
+                                                <div class="text-muted">
+                                                    <i class="bi bi-exclamation-circle"></i> No PDF uploaded
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div id="upload-progress" class="mt-2" style="display: none;">
+                                            <div class="progress">
+                                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                     role="progressbar" style="width: 100%"></div>
+                                            </div>
+                                            <small class="text-muted">Processing PDF...</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Action Buttons -->
+                                    <div class="col-md-8">
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <button class="btn btn-outline-secondary btn-sm" onclick="clearChat()">
+                                                <i class="bi bi-trash"></i> Clear Chat
+                                            </button>
+                                            <button class="btn btn-outline-warning btn-sm" onclick="resetSession()">
+                                                <i class="bi bi-arrow-clockwise"></i> Reset Session
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Section -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card chat-card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-chat-dots"></i> Chat Interface
+                                </h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <!-- Chat Messages -->
+                                <div id="chat-messages" class="chat-messages">
+                                    {% if messages %}
+                                        {% for message in messages %}
+                                        <div class="message {{ message.role }}">
+                                            <div class="message-content">
+                                                {% if message.role == 'user' %}
+                                                <div class="message-header">
+                                                    <i class="bi bi-person-circle"></i> You
+                                                </div>
+                                                {% else %}
+                                                <div class="message-header">
+                                                    <i class="bi bi-robot"></i> Assistant
+                                                </div>
+                                                {% endif %}
+                                                <div class="message-text">{{ message.content }}</div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                    <div class="empty-chat">
+                                        <i class="bi bi-chat display-4 text-muted"></i>
+                                        <p class="text-muted mt-3">Upload a PDF and start asking questions!</p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Chat Input -->
+                                <div class="chat-input-section">
+                                    <div class="input-group">
+                                        <input type="text" id="question-input" class="form-control" 
+                                               placeholder="Ask a question about your PDF..." 
+                                               {% if not session.get('pdf_processed') or not has_api_key %}disabled{% endif %}>
+                                        <button class="btn btn-primary" type="button" id="ask-button" 
+                                                onclick="askQuestion()" 
+                                                {% if not session.get('pdf_processed') or not has_api_key %}disabled{% endif %}>
+                                            <i class="bi bi-send"></i> Ask
+                                        </button>
+                                    </div>
+                                    {% if not session.get('pdf_processed') %}
+                                    <small class="text-muted">Please upload a PDF file to start asking questions.</small>
+                                    {% elif not has_api_key %}
+                                    <small class="text-muted">API key is required to ask questions.</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        </main>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
